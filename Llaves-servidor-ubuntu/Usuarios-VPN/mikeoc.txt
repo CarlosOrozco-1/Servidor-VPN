@@ -1,0 +1,48 @@
+Creacion de usuario para uso de la VPN
+
+1-Generar clave para uso del servidor
+wg genkey | tee mikecotzo_private.key | wg pubkey > mikecotzo_public.key
+
+2-Verificar la creación de la claves
+
+cat mikecotzo_private.key
+wH56KraBuAKtPEfHo6rGWRIqYSmkHC8Cz7DQH2wxT0A=
+
+cat mikecotzo_public.key
+EIdDzkpyynBI0vUA+K3d4w46LG/2PiInaJjvzljAC20=
+
+
+3- Asignar la IP interna
+
+mikecotzo IP 10.6.0.5  (la ip se asigna segun el numero de usuario en este caso la 10.6.0.1 (servidor), 10.6.0.1 (usuario client1)
+
+4-Agregar el peer (nodo)(equipo) al servidor
+
+sudo nano /etc/wireguard/wg0.conf  (abrir el archivo para agregar peer)
+
+[Peer]
+PublicKey = EIdDzkpyynBI0vUA+K3d4w46LG/2PiInaJjvzljAC20=
+AllowedIPs = 10.6.0.5/32
+
+5-Crear archivo cliente
+
+[Interface]
+PrivateKey = wH56KraBuAKtPEfHo6rGWRIqYSmkHC8Cz7DQH2wxT0A=
+Address = 10.6.0.5/24
+DNS = 1.1.1.1, 8.8.8.8
+
+[Peer]
+PublicKey = fZrG0x6jFTRM/wwOasP7+ww4uc1bHnKJ6Zhnx6ZB8gk=
+Endpoint = 161.153.28.223:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+
+
+en linux verificar tener la herramienta wireguard tools
+
+sudo dnf install wireguard-tools -y
+
+En windows instalar el programa, crear tunel vacio y agregar a la configuración la configuración del archivo cliente.
+
+
+
