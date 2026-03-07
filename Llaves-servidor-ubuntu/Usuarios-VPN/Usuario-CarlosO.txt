@@ -1,0 +1,47 @@
+Creacion de usuario para uso de la VPN
+
+1-Generar clave para uso del servidor
+wg genkey | tee carloso_private.key | wg pubkey > carloso_public.key
+
+2-Verificar la creación de la claves
+
+cat carloso_private.key
+4AsUIXornps8Dc6TkkPUsIREALv+OpQ5s6NyZ8mgJ38=
+
+cat carloso_public.key
+X1Ur5m1pQ5JSZbq+QGNG1zCyaUYzUdEfRMhBezjtCD4=
+
+3- Asignar la IP interna
+
+carloso IP 10.6.0.3  (la ip se asigna segun el numero de usuario en este caso la 10.6.0.1 (servidor), 10.6.0.1 (usuario client1)
+
+4-Agregar el peer (nodo)(equipo) al servidor 
+
+sudo nano /etc/wireguard/wg0.conf  (abrir el archivo para agregar peer)
+
+[Peer]
+PublicKey = X1Ur5m1pQ5JSZbq+QGNG1zCyaUYzUdEfRMhBezjtCD4=
+AllowedIPs = 10.6.0.3/32
+
+5-Crear archivo cliente
+
+[Interface]
+PrivateKey = 4AsUIXornps8Dc6TkkPUsIREALv+OpQ5s6NyZ8mgJ38=
+Address = 10.6.0.3/24
+DNS = 1.1.1.1, 8.8.8.8
+
+[Peer]
+PublicKey = fZrG0x6jFTRM/wwOasP7+ww4uc1bHnKJ6Zhnx6ZB8gk=
+Endpoint = 161.153.28.223:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+
+
+en linux verificar tener la herramienta wireguard tools
+
+sudo dnf install wireguard-tools -y
+
+En windows instalar el programa, crear tunel vacio y agregar a la configuración la configuración del archivo cliente.
+
+
+
