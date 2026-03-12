@@ -1,0 +1,10 @@
+# Ignorar archivos privados y sensibles
+notas-internas/
+configuraciones/
+
+# Ignorar archivos de configuración con claves privadas
+*.conf
+
+# Ignorar llaves privadas
+*.key
+*_private*
