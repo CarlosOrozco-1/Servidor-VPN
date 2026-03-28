@@ -17,7 +17,7 @@ function generarClavesWireGuard() {
 router.get('/', async (req, res) => {
   try {
     const usuarios = await Usuario.getAll();
-    res.json(usuarios);
+    res.json(Array.isArray(usuarios) ? usuarios : []);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -14,24 +14,23 @@ async function ensureDb() {
   
   if (!initPromise) {
     initPromise = (async () => {
-      SQL = await initSqlJs();
+      const wasmPath = path.join(__dirname, '..', '..', 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm');
+      
+      SQL = await initSqlJs({
+        locateFile: file => wasmPath
+      });
+      
       let buffer = null;
       if (fs.existsSync(DB_PATH)) {
         buffer = fs.readFileSync(DB_PATH);
       }
       db = new SQL.Database(buffer);
+      console.log('Base de datos cargada desde:', DB_PATH);
       return db;
     })();
   }
   
   return await initPromise;
-}
-
-function getDb() {
-  if (!db) {
-    throw new Error('DB no inicializada. Llama a await getDbAsync() primero.');
-  }
-  return db;
 }
 
 async function getDbAsync() {
@@ -59,7 +58,6 @@ function closeDb() {
 }
 
 module.exports = {
-  getDb,
   getDbAsync,
   ensureDb,
   closeDb,
