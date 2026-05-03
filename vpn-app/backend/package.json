@@ -9,13 +9,13 @@
     "init-db": "node src/database/init.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
-    "sql.js": "^1.10.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "sql.js": "^1.10.3",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.3"
+    "nodemon": "^3.1.14"
   }
 }

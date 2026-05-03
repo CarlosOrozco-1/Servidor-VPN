@@ -9,12 +9,6 @@ import {
   descargarConfig,
 } from "../services/api";
 
-/**
- * Genera un nombre de usuario sugerido a partir del nombre completo.
- * Por ejemplo: "Carlos Orozco" -> "carloso"
- * @param {string} nombre - El nombre completo del usuario.
- * @returns {string} El nombre de usuario generado.
- */
 function generarUsuarioDesdeNombre(nombre) {
   if (!nombre) return "";
   const partes = nombre.trim().split(" ");
@@ -24,22 +18,16 @@ function generarUsuarioDesdeNombre(nombre) {
   return nombreBase + apellido;
 }
 
-function Usuarios() {
-  // Estado para almacenar la lista de usuarios
+function Usuarios({ showToast }) {
   const [usuarios, setUsuarios] = useState([]);
-  // Estado para indicar si los datos están cargando
   const [loading, setLoading] = useState(true);
-  // Estado para manejar mensajes de error
   const [error, setError] = useState(null);
-  // Estado para controlar la visibilidad del modal de creación/edición de usuario
   const [modalOpen, setModalOpen] = useState(false);
-  // Estado para almacenar el usuario cuyas claves se están visualizando en un modal
   const [modalClaves, setModalClaves] = useState(null);
-  // Estado para almacenar las claves (privada y pública) del usuario seleccionado
   const [claves, setClaves] = useState(null);
-  // Estado para almacenar el usuario que se está editando (null si es un nuevo usuario)
   const [editando, setEditando] = useState(null);
-  // Estado para los datos del formulario de usuario
+  const [usuarioAEliminar, setUsuarioAEliminar] = useState(null); 
+  
   const [formData, setFormData] = useState({
     nombre: "",
     usuario: "",
@@ -48,22 +36,17 @@ function Usuarios() {
     notas: "",
     clave_privada: "",
     clave_publica: "",
-    sistema_operativo: "linux", // Valor por defecto
+    sistema_operativo: "linux",
   });
 
-  // Ref para el contenido del modal de usuario para evitar cierres accidentales
   const userModalRef = useRef(null);
-  // Ref para el contenido del modal de claves para evitar cierres accidentales
   const clavesModalRef = useRef(null);
+  const deleteModalRef = useRef(null);
 
-  // useEffect se ejecuta una vez al montar el componente para cargar los usuarios iniciales
   useEffect(() => {
     cargarUsuarios();
-  }, []); // El array vacío asegura que se ejecuta solo una vez al montar
+  }, []);
 
-  /**
-   * Carga la lista de usuarios desde la API.
-   */
   async function cargarUsuarios() {
     try {
       setLoading(true);
@@ -71,21 +54,15 @@ function Usuarios() {
       setUsuarios(data);
     } catch (err) {
       setError(err.message);
+      if (showToast) showToast(err.message, 'error');
     } finally {
       setLoading(false);
     }
   }
 
-  /**
-   * Maneja el cambio en el campo de nombre del formulario.
-   * Si no se está editando y el campo de usuario está vacío, genera un nombre de usuario sugerido.
-   * @param {Object} e - Evento de cambio del input.
-   */
   function handleNombreChange(e) {
     const nombre = e.target.value;
     setFormData({ ...formData, nombre });
-
-    // Si no estamos editando y el campo de usuario está vacío, genera uno automáticamente
     if (!editando && !formData.usuario) {
       setFormData((prev) => ({
         ...prev,
@@ -94,14 +71,9 @@ function Usuarios() {
     }
   }
 
-  /**
-   * Maneja el envío del formulario de creación/edición de usuario.
-   * @param {Object} e - Evento de envío del formulario.
-   */
   async function handleSubmit(e) {
     e.preventDefault();
     try {
-      // Datos a enviar a la API
       const dataToSend = {
         nombre: formData.nombre,
         usuario: formData.usuario,
@@ -111,67 +83,54 @@ function Usuarios() {
       };
 
       if (editando) {
-        // Si estamos editando, incluimos la IP asignada
         dataToSend.ip_asignada = formData.ip_asignada;
         await actualizarUsuario(editando.id, dataToSend);
+        if (showToast) showToast('Usuario actualizado correctamente');
       } else {
-        // Si estamos creando un nuevo usuario, podemos incluir claves si fueron proporcionadas manualmente
         if (formData.clave_privada && formData.clave_publica) {
           dataToSend.clave_privada = formData.clave_privada;
           dataToSend.clave_publica = formData.clave_publica;
         }
         await crearUsuario(dataToSend);
+        if (showToast) showToast('Usuario creado exitosamente');
       }
-      // Cierra el modal y resetea el formulario
       setModalOpen(false);
       setEditando(null);
       setFormData({
-        nombre: "",
-        usuario: "",
-        email: "",
-        ip_asignada: "",
-        notas: "",
-        clave_privada: "",
-        clave_publica: "",
-        sistema_operativo: "linux",
+        nombre: "", usuario: "", email: "", ip_asignada: "", notas: "",
+        clave_privada: "", clave_publica: "", sistema_operativo: "linux",
       });
-      cargarUsuarios(); // Recarga la lista de usuarios
+      cargarUsuarios();
     } catch (err) {
       setError(err.message);
+      if (showToast) showToast(err.message, 'error');
     }
   }
 
-  /**
-   * Maneja la eliminación de un usuario.
-   * @param {Object} usuario - El objeto usuario a eliminar.
-   */
-  async function handleEliminar(usuario) {
-    if (!confirm(`¿Eliminar usuario ${usuario.nombre}?`)) return;
+  async function confirmarEliminar() {
+    if (!usuarioAEliminar) return;
     try {
-      await eliminarUsuario(usuario.id);
-      cargarUsuarios(); // Recarga la lista de usuarios
+      await eliminarUsuario(usuarioAEliminar.id);
+      if (showToast) showToast('Usuario eliminado correctamente');
+      setUsuarioAEliminar(null);
+      cargarUsuarios();
     } catch (err) {
       setError(err.message);
+      if (showToast) showToast(err.message, 'error');
     }
   }
 
-  /**
-   * Cambia el estado (activo/inactivo) de un usuario.
-   * @param {Object} usuario - El objeto usuario a modificar.
-   */
   async function handleToggle(usuario) {
     try {
       await toggleUsuario(usuario.id);
-      cargarUsuarios(); // Recarga la lista de usuarios
+      if (showToast) showToast(`Usuario ${usuario.activo ? 'desactivado' : 'activado'} correctamente`);
+      cargarUsuarios();
     } catch (err) {
       setError(err.message);
+      if (showToast) showToast(err.message, 'error');
     }
   }
 
-  /**
-   * Abre el modal para ver las claves de un usuario.
-   * @param {Object} usuario - El objeto usuario.
-   */
   async function handleVerClaves(usuario) {
     try {
       const data = await getClavesUsuario(usuario.id);
@@ -179,21 +138,15 @@ function Usuarios() {
       setModalClaves(usuario);
     } catch (err) {
       setError(err.message);
+      if (showToast) showToast(err.message, 'error');
     }
   }
 
-  /**
-   * Descarga el archivo de configuración (.conf) para un usuario.
-   * @param {Object} usuario - El objeto usuario.
-   */
   function handleDescargar(usuario) {
     descargarConfig(usuario.id);
+    if (showToast) showToast('Descarga de archivo iniciada');
   }
 
-  /**
-   * Abre el modal en modo edición para un usuario existente.
-   * @param {Object} usuario - El objeto usuario a editar.
-   */
   function abrirModalEditar(usuario) {
     setEditando(usuario);
     setFormData({
@@ -202,236 +155,154 @@ function Usuarios() {
       email: usuario.email || "",
       ip_asignada: usuario.ip_asignada,
       notas: usuario.notas || "",
-      clave_privada: "", // Las claves no se cargan para edición por seguridad
-      clave_publica: "", // Se podrían generar nuevas si se desea
+      clave_privada: "", 
+      clave_publica: "", 
       sistema_operativo: usuario.sistema_operativo || "linux",
     });
     setModalOpen(true);
   }
 
-  /**
-   * Abre el modal en modo creación de un nuevo usuario.
-   */
   function abrirModalCrear() {
-    setEditando(null); // Resetea el estado de edición
+    setEditando(null);
     setFormData({
-      nombre: "",
-      usuario: "",
-      email: "",
-      ip_asignada: "",
-      notas: "",
-      clave_privada: "",
-      clave_publica: "",
-      sistema_operativo: "linux",
+      nombre: "", usuario: "", email: "", ip_asignada: "", notas: "",
+      clave_privada: "", clave_publica: "", sistema_operativo: "linux",
     });
     setModalOpen(true);
   }
 
-  /**
-   * Retorna un ícono basado en el sistema operativo.
-   * @param {string} sistema - El nombre del sistema operativo.
-   * @returns {string} El emoji del ícono.
-   */
   function getSistemaIcon(sistema) {
     switch (sistema) {
-      case "windows":
-        return "🪟";
-      case "linux":
-        return "🐧";
-      case "android":
-        return "📱";
-      default:
-        return "💻";
+      case "windows": return "🪟";
+      case "linux": return "🐧";
+      case "android": return "📱";
+      default: return "💻";
     }
   }
 
-  // Si está cargando, muestra un mensaje
-  if (loading) return <div className="loading">Cargando...</div>;
+  if (loading) return (
+    <div className="loading">
+      <div className="spinner"></div>
+      <p>Cargando usuarios...</p>
+    </div>
+  );
 
   return (
     <div>
-      {/* Muestra un mensaje de error si existe */}
-      {error && <div className="error">{error}</div>}
-
-      <div className="card">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "16px",
-          }}
-        >
-          <h2>Usuarios ({usuarios.length})</h2>
-          {/* Botón para abrir el modal de creación de nuevo usuario */}
-          <button className="btn btn-primary" onClick={abrirModalCrear}>
-            + Nuevo Usuario
-          </button>
+      <div className="card-header">
+        <div>
+          <h1 className="page-title" style={{marginBottom: '4px'}}>Gestión de Usuarios</h1>
+          <p style={{color: 'var(--text-muted)', fontSize: '14px'}}>Administra los accesos VPN y las configuraciones de los clientes.</p>
         </div>
+        <button className="btn btn-primary" onClick={abrirModalCrear}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Nuevo Usuario
+        </button>
+      </div>
 
+      <div className="card" style={{padding: 0, overflow: 'hidden'}}>
         {usuarios.length === 0 ? (
-          // Mensaje si no hay usuarios registrados
-          <div className="empty">No hay usuarios registrados</div>
+          <div className="empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            <p style={{fontWeight: 500}}>No hay usuarios registrados</p>
+            <button className="btn btn-primary" onClick={abrirModalCrear}>Crear primer usuario</button>
+          </div>
         ) : (
-          // Tabla de usuarios
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Nombre</th>
-                <th>Usuario</th>
-                <th>IP</th>
-                <th>S.O.</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usuarios.map((usuario) => (
-                <tr key={usuario.id}>
-                  <td>{usuario.nombre}</td>
-                  <td>
-                    <code>{usuario.usuario || "-"}</code>
-                  </td>
-                  <td>{usuario.ip_asignada}</td>
-                  <td>
-                    {getSistemaIcon(usuario.sistema_operativo)}{" "}
-                    {usuario.sistema_operativo}
-                  </td>
-                  <td>
-                    <span
-                      className={`badge ${usuario.activo ? "badge-activo" : "badge-inactivo"}`}
-                    >
-                      {usuario.activo ? "Activo" : "Inactivo"}
-                    </span>
-                  </td>
-                  <td>
-                    {/* Botones de acción para cada usuario */}
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => abrirModalEditar(usuario)}
-                    >
-                      Editar
-                    </button>
-                    <button
-                      className={`btn btn-sm ${usuario.activo ? "btn-danger" : "btn-success"}`}
-                      style={{ marginLeft: "4px" }}
-                      onClick={() => handleToggle(usuario)}
-                    >
-                      {usuario.activo ? "Desact" : "Activar"}
-                    </button>
-                    <button
-                      className="btn btn-sm"
-                      style={{
-                        marginLeft: "4px",
-                        background: "#8b5cf6",
-                        color: "white",
-                      }}
-                      onClick={() => handleVerClaves(usuario)}
-                    >
-                      Claves
-                    </button>
-                    <button
-                      className="btn btn-sm"
-                      style={{
-                        marginLeft: "4px",
-                        background: "#059669",
-                        color: "white",
-                      }}
-                      onClick={() => handleDescargar(usuario)}
-                    >
-                      .conf
-                    </button>
-                  </td>
+          <div className="table-container" style={{border: 'none', borderRadius: 0}}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Usuario</th>
+                  <th>IP</th>
+                  <th>S.O.</th>
+                  <th>Estado</th>
+                  <th style={{textAlign: 'right'}}>Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {usuarios.map((usuario) => (
+                  <tr key={usuario.id}>
+                    <td>
+                      <div style={{fontWeight: 500, color: 'var(--text-main)'}}>{usuario.nombre}</div>
+                      {usuario.email && <div style={{fontSize: '12px', color: 'var(--text-muted)'}}>{usuario.email}</div>}
+                    </td>
+                    <td><code style={{background: '#f3f4f6', padding: '4px 8px', borderRadius: '6px', fontSize: '13px', color: '#4f46e5'}}>{usuario.usuario || "-"}</code></td>
+                    <td style={{fontFamily: 'monospace'}}>{usuario.ip_asignada}</td>
+                    <td>
+                      <span style={{display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px'}}>
+                        {getSistemaIcon(usuario.sistema_operativo)}
+                        <span style={{textTransform: 'capitalize'}}>{usuario.sistema_operativo}</span>
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`badge ${usuario.activo ? "badge-activo" : "badge-inactivo"}`}>
+                        {usuario.activo ? "Activo" : "Inactivo"}
+                      </span>
+                    </td>
+                    <td style={{textAlign: 'right'}}>
+                      <div style={{display: 'flex', gap: '6px', justifyContent: 'flex-end'}}>
+                        <button className="btn btn-sm" style={{background: '#e5e7eb', color: 'var(--text-main)'}} onClick={() => abrirModalEditar(usuario)} title="Editar">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button className="btn btn-sm" style={{background: '#8b5cf6', color: 'white'}} onClick={() => handleVerClaves(usuario)} title="Ver Claves">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+                        </button>
+                        <button className="btn btn-sm" style={{background: '#059669', color: 'white'}} onClick={() => handleDescargar(usuario)} title="Descargar .conf">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        </button>
+                        <button className={`btn btn-sm ${usuario.activo ? 'btn-danger' : 'btn-success'}`} onClick={() => handleToggle(usuario)} title={usuario.activo ? "Desactivar" : "Activar"}>
+                          {usuario.activo ? 
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg> : 
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                          }
+                        </button>
+                        <button className="btn btn-sm" style={{background: '#fee2e2', color: '#991b1b'}} onClick={() => setUsuarioAEliminar(usuario)} title="Eliminar">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {/* Modal para crear/editar usuario */}
       {modalOpen && (
         <div className="modal-overlay" onClick={() => setModalOpen(false)}>
-          {" "}
-          {/* Cierra al hacer clic fuera del modal */}
-          <div
-            className="modal"
-            ref={userModalRef}
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "600px" }}
-          >
-            {" "}
-            {/* Evita que el clic en el contenido cierre el modal */}
+          <div className="modal" ref={userModalRef} onClick={(e) => e.stopPropagation()} style={{ maxWidth: "600px" }}>
             <h2>{editando ? "Editar Usuario" : "Nuevo Usuario"}</h2>
             <form onSubmit={handleSubmit}>
               <div className="grid-2">
                 <div className="form-group">
-                  <label>Nombre completo *</label>
-                  <input
-                    type="text"
-                    value={formData.nombre}
-                    onChange={handleNombreChange}
-                    required
-                  />
+                  <label>Nombre completo <span style={{color: 'var(--danger)'}}>*</span></label>
+                  <input type="text" value={formData.nombre} onChange={handleNombreChange} required />
                 </div>
                 <div className="form-group">
                   <label>Usuario (login)</label>
-                  <input
-                    type="text"
-                    value={formData.usuario}
-                    onChange={(e) =>
-                      setFormData({ ...formData, usuario: e.target.value })
-                    }
-                    placeholder="nombre + inicial apellido"
-                  />
+                  <input type="text" value={formData.usuario} onChange={(e) => setFormData({ ...formData, usuario: e.target.value })} placeholder="nombre + inicial apellido" />
                 </div>
               </div>
 
               <div className="grid-2">
                 <div className="form-group">
                   <label>Email</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                  />
+                  <input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
                 </div>
                 {editando && (
                   <div className="form-group">
                     <label>IP Asignada</label>
-                    <input
-                      type="text"
-                      value={formData.ip_asignada}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          ip_asignada: e.target.value,
-                        })
-                      }
-                    />
+                    <input type="text" value={formData.ip_asignada} onChange={(e) => setFormData({ ...formData, ip_asignada: e.target.value })} />
                   </div>
                 )}
               </div>
 
               <div className="form-group">
                 <label>Sistema Operativo</label>
-                <select
-                  value={formData.sistema_operativo}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      sistema_operativo: e.target.value,
-                    })
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    borderRadius: "4px",
-                    border: "1px solid #d1d5db",
-                  }}
-                >
+                <select value={formData.sistema_operativo} onChange={(e) => setFormData({ ...formData, sistema_operativo: e.target.value })}>
                   <option value="linux">🐧 Linux</option>
                   <option value="windows">🪟 Windows</option>
                   <option value="android">📱 Android</option>
@@ -439,56 +310,22 @@ function Usuarios() {
               </div>
 
               {!editando && (
-                // Sección para claves WireGuard (solo visible en modo creación)
-                <div
-                  style={{
-                    padding: "12px",
-                    background: "#fef3c7",
-                    borderRadius: "4px",
-                    marginBottom: "16px",
-                  }}
-                >
-                  <strong>Claves WireGuard</strong>
-                  <p
-                    style={{
-                      fontSize: "12px",
-                      color: "#6b7280",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Deja vacío para generar automáticamente. Si usas Windows,
-                    ingresa las claves que genera la app.
+                <div style={{ padding: "16px", background: "#f8fafc", borderRadius: "8px", marginBottom: "20px", border: '1px solid #e2e8f0' }}>
+                  <strong style={{color: 'var(--text-main)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+                    Claves WireGuard
+                  </strong>
+                  <p style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "6px" }}>
+                    Deja vacío para generar automáticamente. Si usas Windows, ingresa las claves de la app.
                   </p>
-                  <div className="grid-2" style={{ marginTop: "8px" }}>
+                  <div className="grid-2" style={{ marginTop: "12px", gap: '12px' }}>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label style={{ fontSize: "12px" }}>Clave Privada</label>
-                      <input
-                        type="text"
-                        value={formData.clave_privada}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            clave_privada: e.target.value,
-                          })
-                        }
-                        placeholder="Generar automáticamente"
-                        style={{ fontFamily: "monospace", fontSize: "11px" }}
-                      />
+                      <input type="text" value={formData.clave_privada} onChange={(e) => setFormData({ ...formData, clave_privada: e.target.value })} placeholder="Auto" style={{ fontFamily: "monospace", fontSize: "12px" }} />
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
                       <label style={{ fontSize: "12px" }}>Clave Pública</label>
-                      <input
-                        type="text"
-                        value={formData.clave_publica}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            clave_publica: e.target.value,
-                          })
-                        }
-                        placeholder="Se genera automáticamente"
-                        style={{ fontFamily: "monospace", fontSize: "11px" }}
-                      />
+                      <input type="text" value={formData.clave_publica} onChange={(e) => setFormData({ ...formData, clave_publica: e.target.value })} placeholder="Auto" style={{ fontFamily: "monospace", fontSize: "12px" }} />
                     </div>
                   </div>
                 </div>
@@ -496,26 +333,12 @@ function Usuarios() {
 
               <div className="form-group">
                 <label>Notas</label>
-                <textarea
-                  value={formData.notas}
-                  onChange={(e) =>
-                    setFormData({ ...formData, notas: e.target.value })
-                  }
-                  rows={2}
-                />
+                <textarea value={formData.notas} onChange={(e) => setFormData({ ...formData, notas: e.target.value })} rows={2} />
               </div>
 
               <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setModalOpen(false)}
-                >
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  {editando ? "Guardar" : "Crear"}
-                </button>
+                <button type="button" className="btn" onClick={() => setModalOpen(false)}>Cancelar</button>
+                <button type="submit" className="btn btn-primary">{editando ? "Guardar Cambios" : "Crear Usuario"}</button>
               </div>
             </form>
           </div>
@@ -525,79 +348,73 @@ function Usuarios() {
       {/* Modal para mostrar las claves del usuario */}
       {modalClaves && claves && (
         <div className="modal-overlay" onClick={() => setModalClaves(null)}>
-          {" "}
-          {/* Cierra al hacer clic fuera del modal */}
-          <div
-            className="modal"
-            ref={clavesModalRef}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {" "}
-            {/* Evita que el clic en el contenido cierre el modal */}
-            <h2>Claves de {modalClaves.nombre}</h2>
-            <div className="form-group">
-              <label>Usuario</label>
-              <input type="text" value={modalClaves.usuario || "-"} readOnly />
+          <div className="modal" ref={clavesModalRef} onClick={(e) => e.stopPropagation()} style={{maxWidth: '550px'}}>
+            <h2>Credenciales VPN: <span style={{color: 'var(--primary)'}}>{modalClaves.nombre}</span></h2>
+            
+            <div className="grid-2" style={{marginBottom: '16px'}}>
+              <div className="form-group" style={{marginBottom: 0}}>
+                <label>Usuario</label>
+                <input type="text" value={modalClaves.usuario || "-"} readOnly style={{background: '#f9fafb'}} />
+              </div>
+              <div className="form-group" style={{marginBottom: 0}}>
+                <label>IP Asignada</label>
+                <input type="text" value={modalClaves.ip_asignada} readOnly style={{background: '#f9fafb'}} />
+              </div>
             </div>
+
             <div className="form-group">
-              <label>IP Asignada</label>
-              <input type="text" value={modalClaves.ip_asignada} readOnly />
+              <label style={{display: 'flex', justifyContent: 'space-between'}}>
+                Clave Privada <span style={{color: 'var(--danger)', fontSize: '12px'}}>NO compartir</span>
+              </label>
+              <textarea readOnly rows={2} style={{ fontFamily: "monospace", fontSize: "13px", background: '#fef2f2', borderColor: '#fecaca', color: '#991b1b' }} value={claves.clave_privada} />
             </div>
-            <div className="form-group">
-              <label>Clave Privada (NO compartir)</label>
-              <textarea
-                readOnly
-                rows={2}
-                style={{ fontFamily: "monospace", fontSize: "11px" }}
-              >
-                {claves.clave_privada}
-              </textarea>
-            </div>
+            
             <div className="form-group">
               <label>Clave Pública</label>
-              <input
-                type="text"
-                value={claves.clave_publica}
-                readOnly
-                style={{ fontFamily: "monospace" }}
-              />
+              <input type="text" value={claves.clave_publica} readOnly style={{ fontFamily: "monospace", fontSize: "13px", background: '#f9fafb' }} />
             </div>
-            <div
-              style={{
-                marginTop: "16px",
-                padding: "12px",
-                background: "#fef3c7",
-                borderRadius: "4px",
-                fontSize: "13px",
-              }}
-            >
-              <strong>Para agregar al servidor:</strong>
-              <br />
-              <code
-                style={{
-                  display: "block",
-                  marginTop: "8px",
-                  whiteSpace: "pre-wrap",
-                }}
-              >
-                [Peer] PublicKey = {claves.clave_publica}
+            
+            <div style={{ marginTop: "24px", padding: "16px", background: "#111827", color: '#e5e7eb', borderRadius: "8px", fontSize: "13px" }}>
+              <div style={{color: '#9ca3af', marginBottom: '8px', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em'}}>Snippet del Servidor</div>
+              <code style={{ display: "block", whiteSpace: "pre-wrap", fontFamily: 'monospace' }}>
+                <span style={{color: '#818cf8'}}>[Peer]</span><br/>
+                PublicKey = {claves.clave_publica}<br/>
                 AllowedIPs = {modalClaves.ip_asignada}/32
               </code>
             </div>
+            
             <div className="modal-actions">
-              <button
-                className="btn btn-success"
-                onClick={() => handleDescargar(modalClaves)}
-              >
-                Descargar archivo .conf
-              </button>
-              <button className="btn" onClick={() => setModalClaves(null)}>
-                Cerrar
+              <button className="btn" onClick={() => setModalClaves(null)}>Cerrar</button>
+              <button className="btn btn-success" onClick={() => handleDescargar(modalClaves)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Descargar Configuración
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Modal de confirmación de eliminación */}
+      {usuarioAEliminar && (
+        <div className="modal-overlay" onClick={() => setUsuarioAEliminar(null)}>
+          <div className="modal" ref={deleteModalRef} onClick={(e) => e.stopPropagation()} style={{maxWidth: '400px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px'}}>
+              <div style={{background: '#fee2e2', color: '#dc2626', padding: '10px', borderRadius: '50%'}}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+              </div>
+              <h2 style={{margin: 0}}>Confirmar eliminación</h2>
+            </div>
+            <p style={{color: 'var(--text-muted)'}}>
+              ¿Estás seguro de que deseas eliminar permanentemente al usuario <strong style={{color: 'var(--text-main)'}}>{usuarioAEliminar.nombre}</strong>? Esta acción no se puede deshacer y revocará su acceso VPN inmediatamente.
+            </p>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setUsuarioAEliminar(null)}>Cancelar</button>
+              <button className="btn btn-danger" onClick={confirmarEliminar}>Sí, eliminar usuario</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

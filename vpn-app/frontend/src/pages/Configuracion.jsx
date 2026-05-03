@@ -1,165 +1,131 @@
 import { useState, useEffect } from "react";
 import { getConfigs, updateConfig } from "../services/api";
 
-/**
- * Componente funcional para la página de configuración del servidor VPN.
- * Permite visualizar y editar las configuraciones generales del servidor.
- */
-function Configuracion() {
-  // Estado para almacenar la lista de configuraciones obtenidas de la API.
+function Configuracion({ showToast }) {
   const [configs, setConfigs] = useState([]);
-  // Estado para indicar si los datos de configuración están cargando.
   const [loading, setLoading] = useState(true);
-  // Estado para manejar cualquier mensaje de error que pueda ocurrir durante las operaciones.
   const [error, setError] = useState(null);
-  // Estado para almacenar la 'clave' de la configuración que se está editando actualmente (ej. 'endpoint').
   const [editando, setEditando] = useState(null);
-  // Estado para almacenar el valor temporal del input cuando una configuración está siendo editada.
   const [valorEdit, setValorEdit] = useState("");
 
-  // useEffect se ejecuta una vez al montar el componente para cargar las configuraciones iniciales.
   useEffect(() => {
     cargarConfigs();
-  }, []); // El array vacío asegura que se ejecuta solo una vez al montar.
+  }, []);
 
-  /**
-   * Carga las configuraciones del servidor desde la API.
-   * Actualiza los estados `configs`, `loading` y `error`.
-   */
   async function cargarConfigs() {
     try {
-      setLoading(true); // Inicia el estado de carga.
-      const data = await getConfigs(); // Llama a la API para obtener las configuraciones.
-      setConfigs(data); // Almacena las configuraciones en el estado.
+      setLoading(true);
+      const data = await getConfigs();
+      setConfigs(data);
     } catch (err) {
-      setError(err.message); // Captura y muestra cualquier error.
+      setError(err.message);
+      if (showToast) showToast(err.message, 'error');
     } finally {
-      setLoading(false); // Finaliza el estado de carga, independientemente del resultado.
+      setLoading(false);
     }
   }
 
-  /**
-   * Maneja el guardado de una configuración editada.
-   * Envía el valor actualizado a la API y luego recarga todas las configuraciones.
-   */
   async function handleGuardar() {
     try {
-      // Llama a la API para actualizar la configuración con la clave y el nuevo valor.
       await updateConfig(editando, valorEdit);
-      setEditando(null); // Resetea el estado de edición.
-      setValorEdit(""); // Limpia el valor temporal de edición.
-      cargarConfigs(); // Recarga todas las configuraciones para reflejar el cambio.
+      if (showToast) showToast(`Configuración ${editando} guardada correctamente`);
+      setEditando(null);
+      setValorEdit("");
+      cargarConfigs();
     } catch (err) {
-      setError(err.message); // Captura y muestra cualquier error.
+      setError(err.message);
+      if (showToast) showToast(err.message, 'error');
     }
   }
 
-  /**
-   * Inicia el modo de edición para una configuración específica.
-   * @param {Object} config - El objeto de configuración a editar.
-   */
   function iniciarEdicion(config) {
-    setEditando(config.clave); // Establece la clave de la configuración que se está editando.
-    setValorEdit(config.valor); // Carga el valor actual de la configuración en el input de edición.
+    setEditando(config.clave);
+    setValorEdit(config.valor);
   }
 
-  // Si los datos están cargando, muestra un mensaje de carga.
-  if (loading) return <div className="loading">Cargando...</div>;
+  if (loading) return (
+    <div className="loading">
+      <div className="spinner"></div>
+      <p>Cargando configuración...</p>
+    </div>
+  );
 
   return (
     <div>
-      {/* Muestra un mensaje de error si existe */}
-      {error && <div className="error">{error}</div>}
-
-      <div className="card">
-        <h2>Configuración del Servidor VPN</h2>
-
-        {/* Tabla para mostrar y editar las configuraciones */}
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Clave</th>
-              <th>Valor</th>
-              <th>Descripción</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* Mapea sobre la lista de configuraciones para renderizar cada fila */}
-            {configs.map((config) => (
-              <tr key={config.id}>
-                <td>
-                  <strong>{config.clave}</strong>
-                </td>
-                <td>
-                  {/* Renderizado condicional: si se está editando esta configuración, muestra un input; de lo contrario, muestra el valor */}
-                  {editando === config.clave ? (
-                    <input
-                      type="text"
-                      value={valorEdit}
-                      onChange={(e) => setValorEdit(e.target.value)} // Actualiza el estado temporal al escribir
-                      style={{ width: "100%" }}
-                    />
-                  ) : (
-                    config.valor // Muestra el valor de la configuración
-                  )}
-                </td>
-                <td style={{ color: "#6b7280" }}>{config.descripcion}</td>
-                <td>
-                  {/* Renderizado condicional de botones: Guardar/Cancelar si editando, o Editar si no */}
-                  {editando === config.clave ? (
-                    <>
-                      <button
-                        className="btn btn-sm btn-primary"
-                        onClick={handleGuardar}
-                      >
-                        Guardar
-                      </button>
-                      <button
-                        className="btn btn-sm"
-                        style={{ marginLeft: "4px" }}
-                        onClick={() => setEditando(null)}
-                      >
-                        Cancelar
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => iniciarEdicion(config)}
-                    >
-                      Editar
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="card-header">
+        <div>
+          <h1 className="page-title" style={{marginBottom: '4px'}}>Configuración del Servidor</h1>
+          <p style={{color: 'var(--text-muted)', fontSize: '14px'}}>Ajusta los parámetros globales de la red VPN WireGuard.</p>
+        </div>
       </div>
 
-      {/* Sección de información consolidada del servidor */}
-      <div className="card">
-        <h2>Información del Servidor</h2>
-        <div style={{ color: "#6b7280" }}>
-          {/* Muestra valores específicos de configuración de forma legible */}
-          <p>
-            <strong>Endpoint:</strong>{" "}
-            {configs.find((c) => c.clave === "endpoint")?.valor}
-          </p>
-          <p>
-            <strong>Subnet:</strong>{" "}
-            {configs.find((c) => c.clave === "subnet")?.valor}
-          </p>
-          <p>
-            <strong>DNS:</strong>{" "}
-            {configs.find((c) => c.clave === "dns")?.valor}
-          </p>
-          <p>
-            <strong>Persistent Keepalive:</strong>{" "}
-            {configs.find((c) => c.clave === "persistent_keepalive")?.valor}{" "}
-            segundos
-          </p>
+      <div className="grid-2">
+        <div className="card" style={{padding: 0, overflow: 'hidden'}}>
+          <div style={{padding: '20px 24px', borderBottom: '1px solid var(--border)', background: '#f8fafc'}}>
+            <h2 style={{margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              Parámetros
+            </h2>
+          </div>
+          <table className="table">
+            <tbody>
+              {configs.map((config) => (
+                <tr key={config.id}>
+                  <td style={{width: '30%', verticalAlign: 'top'}}>
+                    <div style={{fontWeight: 600, color: 'var(--text-main)'}}>{config.clave}</div>
+                    <div style={{fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px'}}>{config.descripcion}</div>
+                  </td>
+                  <td>
+                    {editando === config.clave ? (
+                      <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
+                        <input
+                          type="text"
+                          value={valorEdit}
+                          onChange={(e) => setValorEdit(e.target.value)}
+                          style={{ width: "100%", padding: '8px', borderRadius: '6px', border: '1px solid var(--primary)', outline: 'none', boxShadow: '0 0 0 2px rgba(79, 70, 229, 0.1)' }}
+                          autoFocus
+                        />
+                        <button className="btn btn-sm btn-primary" onClick={handleGuardar}>Guardar</button>
+                        <button className="btn btn-sm" onClick={() => setEditando(null)}>Cancelar</button>
+                      </div>
+                    ) : (
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <code style={{background: '#f3f4f6', padding: '4px 8px', borderRadius: '4px', fontSize: '13px'}}>{config.valor}</code>
+                        <button className="btn btn-sm" style={{background: 'transparent', color: 'var(--text-muted)', padding: '4px'}} onClick={() => iniciarEdicion(config)} title="Editar">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="card" style={{height: 'fit-content'}}>
+          <h2 style={{display: 'flex', alignItems: 'center', gap: '8px', margin: 0, paddingBottom: '16px', borderBottom: '1px solid var(--border)', marginBottom: '16px'}}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+            Resumen del Servidor
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+              <span style={{color: 'var(--text-muted)'}}>Endpoint</span>
+              <span style={{fontWeight: 500}}>{configs.find((c) => c.clave === "endpoint")?.valor}</span>
+            </div>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+              <span style={{color: 'var(--text-muted)'}}>Subnet</span>
+              <span style={{fontWeight: 500}}>{configs.find((c) => c.clave === "subnet")?.valor}</span>
+            </div>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+              <span style={{color: 'var(--text-muted)'}}>DNS</span>
+              <span style={{fontWeight: 500}}>{configs.find((c) => c.clave === "dns")?.valor}</span>
+            </div>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+              <span style={{color: 'var(--text-muted)'}}>Persistent Keepalive</span>
+              <span style={{fontWeight: 500}}>{configs.find((c) => c.clave === "persistent_keepalive")?.valor} seg</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
