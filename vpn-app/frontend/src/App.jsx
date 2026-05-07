@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react'
+import Dashboard from './pages/Dashboard'
+import MonitoreoTiempoReal from './pages/MonitoreoTiempoReal'
 import Usuarios from './pages/Usuarios'
 import Configuracion from './pages/Configuracion'
 import Logs from './pages/Logs'
 
 function App() {
-  const [pagina, setPagina] = useState('usuarios')
+  const [pagina, setPagina] = useState('dashboard')
   const [toasts, setToasts] = useState([])
 
   const showToast = useCallback((message, type = 'success') => {
@@ -26,6 +28,22 @@ function App() {
           VPN Manager
         </div>
         <nav className="sidebar-nav">
+          <button 
+            className={`nav-item ${pagina === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setPagina('dashboard')}
+            id="nav-dashboard"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Dashboard
+          </button>
+          <button
+            className={`nav-item ${pagina === 'monitor' ? 'active' : ''}`}
+            onClick={() => setPagina('monitor')}
+            id="nav-monitor"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Monitor
+          </button>
           <button 
             className={`nav-item ${pagina === 'usuarios' ? 'active' : ''}`}
             onClick={() => setPagina('usuarios')}
@@ -52,6 +70,8 @@ function App() {
       
       {/* Main Content */}
       <main className="main-content">
+        {pagina === 'dashboard' && <Dashboard />}
+        {pagina === 'monitor'   && <MonitoreoTiempoReal />}
         {pagina === 'usuarios' && <Usuarios showToast={showToast} />}
         {pagina === 'configuracion' && <Configuracion showToast={showToast} />}
         {pagina === 'logs' && <Logs />}

@@ -8,3 +8,13 @@ configuraciones/
 # Ignorar llaves privadas
 *.key
 *_private*
+
+# Ignorar archivos de variables de entorno (contienen credenciales)
+.env
+*.env
+!scripts/.env.example
+
+# Node.js
+node_modules/
+dist/
+build/

@@ -1,17 +1,17 @@
 const express = require('express');
-const { execSync } = require('child_process');
 const router = express.Router();
 const Usuario = require('../models/Usuario');
 const Log = require('../models/Log');
+const { addPeer, removePeer } = require('../services/wireguardService');
 
+// Genera un par de claves Curve25519 (X25519) compatible con WireGuard.
+// Usa tweetnacl — no requiere que `wg` esté instalado en el servidor local.
 function generarClavesWireGuard() {
-  try {
-    const privateKey = execSync('wg genkey', { encoding: 'utf8' }).trim();
-    const publicKey = execSync(`echo "${privateKey}" | wg pubkey`, { encoding: 'utf8' }).trim();
-    return { privateKey, publicKey };
-  } catch (error) {
-    throw new Error('Error al generar claves WireGuard: ' + error.message);
-  }
+  const nacl = require('tweetnacl');
+  const kp = nacl.box.keyPair();  // Curve25519 DH — mismo algoritmo que WireGuard
+  const privateKey = Buffer.from(kp.secretKey).toString('base64');
+  const publicKey  = Buffer.from(kp.publicKey).toString('base64');
+  return { privateKey, publicKey };
 }
 
 router.get('/', async (req, res) => {
@@ -119,13 +119,17 @@ router.post('/', async (req, res) => {
     }
 
     const ip_asignada = await Usuario.getNextIp();
-    
-    let privateKey, publicKey;
 
-    if (clave_privada && clave_publica) {
-      privateKey = clave_privada;
-      publicKey = clave_publica;
+    let privateKey = null;
+    let publicKey = null;
+
+    if (clave_publica && clave_publica.trim().length >= 40) {
+      // Modo dispositivo: el usuario proporciona su propia clave pública
+      // (generada por la app WireGuard en Windows/Android/iOS)
+      publicKey = clave_publica.trim();
+      privateKey = clave_privada ? clave_privada.trim() : '[GENERADA EN EL DISPOSITIVO]'; // Evita el constraint NOT NULL
     } else {
+      // Modo automático: el backend genera el par de claves
       const claves = generarClavesWireGuard();
       privateKey = claves.privateKey;
       publicKey = claves.publicKey;
@@ -150,6 +154,16 @@ router.post('/', async (req, res) => {
       notas,
       sistema_operativo: sistema_operativo || 'linux'
     });
+
+    // ── Inyectar peer en WireGuard (operación no bloqueante) ──
+    try {
+      await addPeer(publicKey, ip_asignada);
+      await Log.logSistema('WG_PEER_AÑADIDO', `Peer ${publicKey.substring(0, 16)}... inyectado en WireGuard para ${nombre} (${ip_asignada})`);
+    } catch (wgErr) {
+      // No bloqueamos la creación del usuario si el servidor WireGuard falla
+      console.warn('⚠ No se pudo inyectar el peer en WireGuard:', wgErr.message);
+      await Log.logSistema('WG_PEER_ERROR', `Error al inyectar peer para ${nombre}: ${wgErr.message}`);
+    }
 
     await Log.logSistema('CREAR_USUARIO', 'Usuario ' + nombre + ' (' + nombreUsuario + ') creado con IP ' + ip_asignada);
     await Log.create(usuarioCreado.id, 'CREADO', 'IP: ' + ip_asignada + ', Sistema: ' + (sistema_operativo || 'linux'));
@@ -196,6 +210,17 @@ router.delete('/:id', async (req, res) => {
     await Usuario.delete(req.params.id);
     await Log.create(usuario.id, 'ELIMINADO', 'IP: ' + usuario.ip_asignada);
 
+    // ── Remover peer de WireGuard ──
+    if (usuario.clave_publica) {
+      try {
+        await removePeer(usuario.clave_publica);
+        await Log.logSistema('WG_PEER_ELIMINADO', `Peer de ${usuario.nombre} (${usuario.ip_asignada}) removido de WireGuard`);
+      } catch (wgErr) {
+        console.warn('⚠ No se pudo remover el peer de WireGuard:', wgErr.message);
+        await Log.logSistema('WG_PEER_ERROR', `Error al remover peer de ${usuario.nombre}: ${wgErr.message}`);
+      }
+    }
+
     res.json({ message: 'Usuario eliminado', usuario });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -213,6 +238,24 @@ router.post('/:id/toggle', async (req, res) => {
     const actualizado = await Usuario.update(req.params.id, { activo: nuevoEstado });
 
     await Log.create(usuario.id, nuevoEstado === 1 ? 'ACTIVADO' : 'DESACTIVADO', '');
+
+    // ── Sincronizar estado con WireGuard ──
+    if (usuario.clave_publica) {
+      try {
+        if (nuevoEstado === 0) {
+          // Desactivar = remover peer de WireGuard (no puede conectarse)
+          await removePeer(usuario.clave_publica);
+          await Log.logSistema('WG_PEER_DESACTIVADO', `Peer de ${usuario.nombre} removido de WireGuard`);
+        } else {
+          // Activar = re-agregar peer a WireGuard
+          await addPeer(usuario.clave_publica, usuario.ip_asignada);
+          await Log.logSistema('WG_PEER_ACTIVADO', `Peer de ${usuario.nombre} re-añadido a WireGuard (${usuario.ip_asignada})`);
+        }
+      } catch (wgErr) {
+        console.warn('⚠ No se pudo sincronizar toggle con WireGuard:', wgErr.message);
+        await Log.logSistema('WG_PEER_ERROR', `Error en toggle WireGuard para ${usuario.nombre}: ${wgErr.message}`);
+      }
+    }
 
     res.json(actualizado);
   } catch (error) {

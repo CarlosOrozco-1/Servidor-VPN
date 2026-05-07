@@ -15,6 +15,7 @@ require("dotenv").config();
 const usuariosRoutes = require("./routes/usuarios");
 const configuracionesRoutes = require("./routes/configuraciones");
 const logsRoutes = require("./routes/logs");
+const wireguardRoutes = require("./routes/wireguard");
 
 // Importación de la conexión a la base de datos para verificaciones de salud
 const { getDbAsync, ensureDb } = require("./models/db");
@@ -35,9 +36,10 @@ app.use(express.json());
  * Registro de rutas de la API
  * Cada módulo de rutas se asocia a un prefijo específico.
  */
-app.use("/api/usuarios", usuariosRoutes); // Rutas relacionadas con la gestión de usuarios
-app.use("/api/configuraciones", configuracionesRoutes); // Rutas para ajustes del servidor
-app.use("/api/logs", logsRoutes); // Rutas para ver el historial de auditoría
+app.use("/api/usuarios", usuariosRoutes);
+app.use("/api/configuraciones", configuracionesRoutes);
+app.use("/api/logs", logsRoutes);
+app.use("/api/wireguard", wireguardRoutes); // Estado en tiempo real del servidor WireGuard
 
 /**
  * Endpoint de Salud (Health Check)

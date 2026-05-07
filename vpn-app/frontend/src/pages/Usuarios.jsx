@@ -37,6 +37,8 @@ function Usuarios({ showToast }) {
     clave_privada: "",
     clave_publica: "",
     sistema_operativo: "linux",
+    // modo_claves: 'auto' = backend genera | 'dispositivo' = usuario pega su clave pública
+    modo_claves: "auto",
   });
 
   const userModalRef = useRef(null);
@@ -87,19 +89,18 @@ function Usuarios({ showToast }) {
         await actualizarUsuario(editando.id, dataToSend);
         if (showToast) showToast('Usuario actualizado correctamente');
       } else {
-        if (formData.clave_privada && formData.clave_publica) {
-          dataToSend.clave_privada = formData.clave_privada;
-          dataToSend.clave_publica = formData.clave_publica;
+        // Modo dispositivo: solo enviamos clave_publica (sin clave_privada)
+        // Modo auto:        enviamos nada, el backend genera ambas claves
+        if (formData.modo_claves === 'dispositivo' && formData.clave_publica.trim()) {
+          dataToSend.clave_publica = formData.clave_publica.trim();
+          // NO enviamos clave_privada — el dispositivo la tiene, nosotros no
         }
         await crearUsuario(dataToSend);
-        if (showToast) showToast('Usuario creado exitosamente');
+        if (showToast) showToast('Usuario creado e inyectado en WireGuard');
       }
       setModalOpen(false);
       setEditando(null);
-      setFormData({
-        nombre: "", usuario: "", email: "", ip_asignada: "", notas: "",
-        clave_privada: "", clave_publica: "", sistema_operativo: "linux",
-      });
+      resetForm();
       cargarUsuarios();
     } catch (err) {
       setError(err.message);
@@ -162,12 +163,16 @@ function Usuarios({ showToast }) {
     setModalOpen(true);
   }
 
-  function abrirModalCrear() {
-    setEditando(null);
+  function resetForm() {
     setFormData({
       nombre: "", usuario: "", email: "", ip_asignada: "", notas: "",
-      clave_privada: "", clave_publica: "", sistema_operativo: "linux",
+      clave_privada: "", clave_publica: "", sistema_operativo: "linux", modo_claves: "auto",
     });
+  }
+
+  function abrirModalCrear() {
+    setEditando(null);
+    resetForm();
     setModalOpen(true);
   }
 
@@ -309,25 +314,103 @@ function Usuarios({ showToast }) {
                 </select>
               </div>
 
+              {/* ── Selección de modo de claves ── */}
               {!editando && (
-                <div style={{ padding: "16px", background: "#f8fafc", borderRadius: "8px", marginBottom: "20px", border: '1px solid #e2e8f0' }}>
-                  <strong style={{color: 'var(--text-main)', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
-                    Claves WireGuard
-                  </strong>
-                  <p style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "6px" }}>
-                    Deja vacío para generar automáticamente. Si usas Windows, ingresa las claves de la app.
-                  </p>
-                  <div className="grid-2" style={{ marginTop: "12px", gap: '12px' }}>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label style={{ fontSize: "12px" }}>Clave Privada</label>
-                      <input type="text" value={formData.clave_privada} onChange={(e) => setFormData({ ...formData, clave_privada: e.target.value })} placeholder="Auto" style={{ fontFamily: "monospace", fontSize: "12px" }} />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label style={{ fontSize: "12px" }}>Clave Pública</label>
-                      <input type="text" value={formData.clave_publica} onChange={(e) => setFormData({ ...formData, clave_publica: e.target.value })} placeholder="Auto" style={{ fontFamily: "monospace", fontSize: "12px" }} />
-                    </div>
+                <div style={{ marginBottom: 20 }}>
+                  {/* Selector de modo según SO */}
+                  <div style={{
+                    display: 'flex', gap: 0, border: '1px solid var(--border)',
+                    borderRadius: 8, overflow: 'hidden', marginBottom: 12,
+                  }}>
+                    <button
+                      type="button"
+                      id="modo-auto"
+                      style={{
+                        flex: 1, padding: '10px 8px', border: 'none', cursor: 'pointer',
+                        fontSize: 13, fontWeight: 600, transition: 'all 0.2s',
+                        background: formData.modo_claves === 'auto' ? 'var(--primary)' : '#f9fafb',
+                        color: formData.modo_claves === 'auto' ? 'white' : 'var(--text-muted)',
+                      }}
+                      onClick={() => setFormData({ ...formData, modo_claves: 'auto', clave_publica: '', clave_privada: '' })}
+                    >
+                      ⚙️ Generar claves automáticamente
+                    </button>
+                    <button
+                      type="button"
+                      id="modo-dispositivo"
+                      style={{
+                        flex: 1, padding: '10px 8px', border: 'none', cursor: 'pointer',
+                        fontSize: 13, fontWeight: 600, transition: 'all 0.2s',
+                        borderLeft: '1px solid var(--border)',
+                        background: formData.modo_claves === 'dispositivo' ? '#4f46e5' : '#f9fafb',
+                        color: formData.modo_claves === 'dispositivo' ? 'white' : 'var(--text-muted)',
+                      }}
+                      onClick={() => setFormData({ ...formData, modo_claves: 'dispositivo', clave_privada: '' })}
+                    >
+                      📱 Usar llave del dispositivo (Windows/Android)
+                    </button>
                   </div>
+
+                  {/* MODO AUTO */}
+                  {formData.modo_claves === 'auto' && (
+                    <div style={{
+                      padding: '12px 16px', background: '#f0fdf4', borderRadius: 8,
+                      border: '1px solid #bbf7d0', display: 'flex', gap: 10, alignItems: 'flex-start',
+                    }}>
+                      <span style={{ fontSize: 18 }}>✅</span>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#166534', fontSize: 13 }}>Generación automática</div>
+                        <div style={{ color: '#15803d', fontSize: 12, marginTop: 2 }}>
+                          El sistema genera la clave privada y pública. Después podrás descargar el archivo <code>.conf</code> listo para importar.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* MODO DISPOSITIVO */}
+                  {formData.modo_claves === 'dispositivo' && (
+                    <div>
+                      <div style={{
+                        padding: '12px 16px', background: '#eff6ff', borderRadius: '8px 8px 0 0',
+                        border: '1px solid #bfdbfe', borderBottom: 'none',
+                      }}>
+                        <div style={{ fontWeight: 600, color: '#1e40af', fontSize: 13, marginBottom: 6 }}>
+                          📱 Cómo obtener la llave pública de tu dispositivo:
+                        </div>
+                        <ol style={{ margin: 0, paddingLeft: 18, color: '#1e3a8a', fontSize: 12, lineHeight: 1.7 }}>
+                          <li><strong>Windows:</strong> Abre WireGuard → <em>Añadir túnel</em> → <em>Crear desde cero</em> → copia la <strong>Clave Pública</strong></li>
+                          <li><strong>Android:</strong> WireGuard → <em>+</em> → <em>Crear desde cero</em> → copia la <strong>Clave Pública</strong></li>
+                        </ol>
+                      </div>
+                      <div className="form-group" style={{
+                        margin: 0, padding: '12px 16px',
+                        background: '#f8fafc', border: '1px solid #bfdbfe', borderRadius: '0 0 8px 8px',
+                      }}>
+                        <label style={{ fontSize: 13, fontWeight: 600, color: '#1e40af' }}>
+                          Llave pública del dispositivo <span style={{ color: 'var(--danger)' }}>*</span>
+                        </label>
+                        <input
+                          id="input-clave-publica-dispositivo"
+                          type="text"
+                          value={formData.clave_publica}
+                          onChange={(e) => setFormData({ ...formData, clave_publica: e.target.value })}
+                          placeholder="Pega aquí la llave pública (ej: fZrG0x6jFTRM/wwOasP7+...)"
+                          required={formData.modo_claves === 'dispositivo'}
+                          style={{ fontFamily: 'monospace', fontSize: 12, marginTop: 6 }}
+                        />
+                        {formData.clave_publica && formData.clave_publica.trim().length < 40 && (
+                          <div style={{ color: 'var(--danger)', fontSize: 12, marginTop: 4 }}>
+                            ⚠ La llave pública WireGuard debe tener al menos 40 caracteres.
+                          </div>
+                        )}
+                        {formData.clave_publica && formData.clave_publica.trim().length >= 40 && (
+                          <div style={{ color: 'var(--success)', fontSize: 12, marginTop: 4 }}>
+                            ✔ Llave válida ({formData.clave_publica.trim().length} caracteres)
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

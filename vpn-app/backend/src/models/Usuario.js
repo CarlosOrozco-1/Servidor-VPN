@@ -81,16 +81,22 @@ class Usuario {
 
   static async getNextIp() {
     const db = await getDbAsync();
-    const stmt = db.prepare('SELECT ip_asignada FROM usuarios ORDER BY ip_asignada DESC LIMIT 1');
-    let lastIp = null;
-    if (stmt.step()) {
-      lastIp = stmt.getAsObject().ip_asignada;
+    const stmt = db.prepare('SELECT ip_asignada FROM usuarios');
+    let maxOctet = 1; // IP base es .1 (servidor)
+    while (stmt.step()) {
+      const ip = stmt.getAsObject().ip_asignada;
+      if (ip) {
+        const parts = ip.split('.');
+        if (parts.length === 4) {
+          const lastOctet = parseInt(parts[3], 10);
+          if (!isNaN(lastOctet) && lastOctet > maxOctet) {
+            maxOctet = lastOctet;
+          }
+        }
+      }
     }
     stmt.free();
-    if (!lastIp) return '10.6.0.2';
-    const parts = lastIp.split('.');
-    const lastOctet = parseInt(parts[3]);
-    return '10.6.0.' + (lastOctet + 1);
+    return '10.6.0.' + (maxOctet + 1);
   }
 
   static async getActivos() {
